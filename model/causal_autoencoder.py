@@ -49,24 +49,17 @@ class SemanticEncoder(nn.Module):
         videos = videos.permute(0, 1, 4, 2, 3).contiguous()  # [batch, T, H, W, 3] -> [batch, T, 3, H, W]
         videos_fmt = videos.transpose(1, 2)  # [batch, T, 3, H, W] -> [batch, 3, T, H, W]
         
-        try:
-            with torch.no_grad():  # Frozen, no gradients
-                outputs = self.videomae(videos_fmt)
-                features = outputs.last_hidden_state  # [batch, num_patches, 768]
-            
-            # Pool across patches for each frame
-            # This is simplified - actual implementation should track temporal structure
-            # For now, we average pool and repeat for each frame
-            z_pooled = features.mean(dim=1, keepdim=True)  # [batch, 1, 768]
-            z = z_pooled.repeat(1, T, 1)  # [batch, T, 768]
-            
-            return z
-        except Exception as e:
-            # If VideoMAE forward fails (e.g., due to input format), fall back to placeholder
-            # This can happen if input normalization doesn't match VideoMAE's expectations
-            print(f"Warning: VideoMAE forward failed: {e}")
-            print("Falling back to placeholder encoder")
-            return torch.randn(batch, T, 768, device=videos.device)
+        with torch.no_grad():  # Frozen, no gradients
+            outputs = self.videomae(videos_fmt)
+            features = outputs.last_hidden_state  # [batch, num_patches, 768]
+        
+        # Pool across patches for each frame
+        # This is simplified - actual implementation should track temporal structure
+        # For now, we average pool and repeat for each frame
+        z_pooled = features.mean(dim=1, keepdim=True)  # [batch, 1, 768]
+        z = z_pooled.repeat(1, T, 1)  # [batch, T, 768]
+        
+        return z
 
 
 class CausalEncoder(nn.Module):
@@ -87,7 +80,7 @@ class CausalEncoder(nn.Module):
         self.d_latent = d_latent
         self.c = nn.Parameter(torch.tensor(c))
         
-        # Non-linear projection (MLP, not just linear!)
+        # Non-linear projection
         self.projection = nn.Sequential(
             nn.Linear(d_semantic, 512),
             nn.LayerNorm(512),
