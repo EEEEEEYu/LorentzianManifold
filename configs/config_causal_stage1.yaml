@@ -1,0 +1,100 @@
+# Configuration for Stage 1: Train CausalEncoder (Projector) on Kinetics400
+# Based on the research proposal
+
+TRAINING:
+  deterministic: False
+  use_compile: False
+  inference_mode: False
+  seed: 42
+  max_epochs: 50
+  num_sanity_val_steps: 2
+
+DISTRIBUTED:
+  accelerator: cpu
+  devices: 1
+  num_nodes: 1
+  strategy: auto
+
+DATA:
+  dataset:
+    file_name: kinetics400
+    class_name: Kinetics400
+    dataset_init_args:
+      root_dir: dataset/kinetics400
+      num_frames: 16
+      image_height: 224
+      image_width: 224
+      video_length: 10.0
+      fps: 30
+  dataloader:
+    batch_size: 4
+    test_batch_size: 2
+    num_workers: 0
+    persistent_workers: False
+    pin_memory: False
+    multiprocessing_context: fork
+    drop_last: False
+    shuffle_train: True
+    shuffle_val: False
+    shuffle_test: False
+
+MODEL:
+  file_name: causal_autoencoder
+  class_name: CausalAutoencoder
+  model_init_args:
+    d_semantic: 768
+    d_latent: 128
+    c: 1.0
+    image_size: 224
+    use_semantic_encoder: True
+    use_decoder: False
+    training_stage: encoder_only
+    loss_weights:
+      recon: 0.0
+      causal: 1.0
+      acausal: 0.5
+      temporal: 0.1
+      hyperboloid: 0.01
+
+OPTIMIZER:
+  name: Adam
+  arguments:
+    lr: 1e-4
+    weight_decay: 1e-5
+  gradient_accumulation:
+    enabled: False
+    scheduling: {0: 4, 4: 2, 8: 1}
+  gradient_clip:
+    enabled: True
+    gradient_clip_val: 1.0
+    gradient_clip_algorithm: norm
+  stochastic_weight_averaging:
+    enabled: False
+    swa_lrs: 1e-2
+
+SCHEDULER:
+  learning_rate:
+    enabled: True
+    name: CosineAnnealingLR
+    arguments:
+      T_max: 50
+      eta_min: 1e-6
+  early_stopping:
+    enabled: False
+    monitor: val_loss_epoch
+    mode: min
+    patience: 5
+    min_delta: 1e-5
+
+LOGGER:
+  log_dir_root: lightning_logs
+  experiment_name: causal_encoder_kinetics400_stage1
+
+CHECKPOINT:
+  enabled: True
+  every_n_epochs: 1
+  monitor: val_loss_epoch
+  mode: min
+  filename: "best-{epoch:03d}-{val_loss_epoch:.5f}"
+  save_top_k: 1
+  save_last: True

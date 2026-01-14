@@ -2,7 +2,9 @@ import os
 import re
 import datetime
 from typing import Any, Dict
+from typing import Union
 from configs.config_schema import AppConfig
+from configs.config_schema_causal import AppConfigCausal
 
 _VERSION_RE = re.compile(r"^version_(\d+)$")
 
@@ -85,7 +87,7 @@ def _parse_run_and_version_from_ckpt(ckpt_path: str):
     return run_name_rel, version_name, version_dir, run_dir
 
 
-def get_resume_info(config: AppConfig, runtime: Dict[str, Any]):
+def get_resume_info(config: Union[AppConfig, AppConfigCausal], runtime: Dict[str, Any]):
     """
     Decide how to start:
       - full-resume: restore full trainer state from a checkpoint
