@@ -33,7 +33,7 @@ class SemanticEncoder(nn.Module):
     def forward(self, videos):
         """
         Args:
-            videos: [batch, T, 3, H, W]
+            videos: [batch, T, H, W, 3] (channel-last format)
         Returns:
             z: [batch, T, 768] semantic embeddings
         """
@@ -44,10 +44,10 @@ class SemanticEncoder(nn.Module):
         
         batch, T = videos.shape[:2]
         
-        # VideoMAE expects [batch, 3, T, H, W] and normalized pixel values
-        # Note: VideoMAE expects pixel values normalized to [0, 1] or ImageNet normalization
-        # This is simplified - actual implementation should ensure proper normalization
-        videos_fmt = videos.transpose(1, 2)
+        # Convert from channel-last [batch, T, H, W, 3] to channel-first [batch, T, 3, H, W]
+        # Then transpose to VideoMAE format [batch, 3, T, H, W]
+        videos = videos.permute(0, 1, 4, 2, 3).contiguous()  # [batch, T, H, W, 3] -> [batch, T, 3, H, W]
+        videos_fmt = videos.transpose(1, 2)  # [batch, T, 3, H, W] -> [batch, 3, T, H, W]
         
         try:
             with torch.no_grad():  # Frozen, no gradients
@@ -287,7 +287,7 @@ class CausalDecoder(nn.Module):
         Args:
             mu: [batch, T, 129] Lorentzian embeddings
         Returns:
-            frames_recon: [batch, T, 3, H, W] reconstructed video
+            frames_recon: [batch, T, H, W, 3] reconstructed video (channel-last format)
         """
         batch, T, _ = mu.shape
         
@@ -312,6 +312,9 @@ class CausalDecoder(nn.Module):
             frames_recon = frames_recon.view(batch * T, 3, H_out, W_out)
             frames_recon = F.interpolate(frames_recon, size=(self.image_size, self.image_size), mode='bilinear', align_corners=False)
             frames_recon = frames_recon.view(batch, T, 3, self.image_size, self.image_size)
+        
+        # Convert to channel-last format: [batch, T, 3, H, W] -> [batch, T, H, W, 3]
+        frames_recon = frames_recon.permute(0, 1, 3, 4, 2).contiguous()
         
         return frames_recon
 
@@ -357,10 +360,10 @@ class CausalAutoencoder(nn.Module):
     def forward(self, videos, return_intermediates=False):
         """
         Args:
-            videos: [batch, T, 3, H, W] input video
+            videos: [batch, T, H, W, 3] input video (channel-last format)
             return_intermediates: If True, return z and mu as well
         Returns:
-            frames_recon: [batch, T, 3, H, W] reconstructed video
+            frames_recon: [batch, T, H, W, 3] reconstructed video (channel-last format)
             (optionally) z: [batch, T, 768] semantic embeddings
             (optionally) mu: [batch, T, 129] Lorentzian embeddings
         """
@@ -377,7 +380,7 @@ class CausalAutoencoder(nn.Module):
         
         # Stage 3: Decode
         if self.decoder is not None:
-            frames_recon = self.decoder(mu)  # [batch, T, 3, H, W]
+            frames_recon = self.decoder(mu)  # [batch, T, H, W, 3] (channel-last format)
         else:
             frames_recon = None
         

@@ -118,8 +118,8 @@ def compute_causal_loss(frames_input, frames_recon, mu, loss_weights=None):
     Compute total loss for causal autoencoder.
     
     Args:
-        frames_input: [batch, T, 3, H, W] original frames
-        frames_recon: [batch, T, 3, H, W] reconstructed frames
+        frames_input: [batch, T, H, W, 3] original frames (channel-last format)
+        frames_recon: [batch, T, H, W, 3] reconstructed frames (channel-last format)
         mu: [batch, T, 129] Lorentzian embeddings
         loss_weights: Dict with weights for each loss component
     Returns:
@@ -136,6 +136,7 @@ def compute_causal_loss(frames_input, frames_recon, mu, loss_weights=None):
         }
     
     # Loss 1: Reconstruction (semantic preservation)
+    # MSE loss works with any shape, so channel-last format is fine
     L_recon = F.mse_loss(frames_recon, frames_input)
     
     # Loss 2: Temporal causality (enforce time-like separation)

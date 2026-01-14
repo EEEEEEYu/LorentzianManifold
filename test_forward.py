@@ -43,9 +43,10 @@ def test_forward():
     print(f"  Semantic dim: {d_semantic}")
     print(f"  Latent dim: {d_latent}")
     
-    # Create synthetic video data
-    videos = torch.randn(batch_size, num_frames, 3, image_height, image_width)
-    print(f"\nInput video shape: {videos.shape}")
+    # Create synthetic video data in channel-last format [batch, T, H, W, C]
+    videos = torch.randn(batch_size, num_frames, image_height, image_width, 3)
+    videos = videos.contiguous(memory_format=torch.channels_last)
+    print(f"\nInput video shape: {videos.shape} (channel-last format)")
     
     # Test 1: Semantic Encoder
     print("\n" + "=" * 60)
@@ -113,7 +114,9 @@ def test_forward():
         with torch.no_grad():
             frames_recon = causal_decoder(mu)
         print(f"✓ Causal decoder output shape: {frames_recon.shape}")
-        assert frames_recon.shape == videos.shape, f"Expected {videos.shape}, got {frames_recon.shape}"
+        # Decoder outputs channel-last format [batch, T, H, W, 3]
+        expected_shape = (batch_size, num_frames, image_height, image_width, 3)
+        assert frames_recon.shape == expected_shape, f"Expected {expected_shape}, got {frames_recon.shape}"
     except Exception as e:
         print(f"✗ Causal decoder failed: {e}")
         raise
@@ -164,7 +167,9 @@ def test_forward():
         with torch.no_grad():
             frames_recon = model_full(videos, return_intermediates=False)
         print(f"✓ Model (full) output shape: {frames_recon.shape}")
-        assert frames_recon.shape == videos.shape, f"Expected {videos.shape}, got {frames_recon.shape}"
+        # Model outputs channel-last format [batch, T, H, W, 3]
+        expected_shape = (batch_size, num_frames, image_height, image_width, 3)
+        assert frames_recon.shape == expected_shape, f"Expected {expected_shape}, got {frames_recon.shape}"
         
         # Test with intermediates
         with torch.no_grad():

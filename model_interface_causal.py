@@ -72,7 +72,10 @@ class CausalModelInterface(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         """Training step"""
-        videos = batch  # [batch, T, 3, H, W]
+        videos = batch  # [batch, T, H, W, 3] (channel-last format)
+        # Ensure contiguous memory layout for efficient access
+        if not videos.is_contiguous():
+            videos = videos.contiguous()
         
         if self.training_stage == 'encoder_only':
             # Stage 1: Train only CausalEncoder
@@ -126,7 +129,10 @@ class CausalModelInterface(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         """Validation step"""
-        videos = batch  # [batch, T, 3, H, W]
+        videos = batch  # [batch, T, H, W, 3] (channel-last format)
+        # Ensure contiguous memory layout for efficient access
+        if not videos.is_contiguous():
+            videos = videos.contiguous()
         
         if self.training_stage == 'encoder_only':
             # Stage 1: Validate only CausalEncoder
@@ -165,6 +171,7 @@ class CausalModelInterface(pl.LightningModule):
             )
             
             # Compute PSNR for reconstruction quality
+            # Both frames_recon and videos are in channel-last format [batch, T, H, W, 3]
             mse = F.mse_loss(frames_recon, videos)
             psnr = -10 * torch.log10(mse + 1e-10)
             self.log('val_psnr', psnr, on_step=False, on_epoch=True, prog_bar=True)
@@ -179,7 +186,10 @@ class CausalModelInterface(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         """Test step"""
-        videos = batch
+        videos = batch  # [batch, T, H, W, 3] (channel-last format)
+        # Ensure contiguous memory layout for efficient access
+        if not videos.is_contiguous():
+            videos = videos.contiguous()
         
         if self.training_stage == 'encoder_only':
             if self.model.semantic_encoder is not None:
@@ -214,6 +224,7 @@ class CausalModelInterface(pl.LightningModule):
                 loss_weights=self.loss_weights
             )
             
+            # Both frames_recon and videos are in channel-last format [batch, T, H, W, 3]
             mse = F.mse_loss(frames_recon, videos)
             psnr = -10 * torch.log10(mse + 1e-10)
             self.log('test_psnr', psnr, on_step=False, on_epoch=True, prog_bar=True)
